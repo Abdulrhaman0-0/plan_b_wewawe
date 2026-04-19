@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from 'react-leaflet';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './App.css';
@@ -231,7 +231,8 @@ export default function App() {
         send({ type: 'emergency_stop' });
         setSessionLocked(false);
         setPathHistory([]);
-        addLog('SYSTEM', 'SOFTWARE E-STOP ENGAGED', true);
+        setWaypoints([]);
+        addLog('SYSTEM', 'SOFTWARE E-STOP ENGAGED - ALL OPERATIONS HALTED', true);
     };
 
     const handleStop = () => {
@@ -241,6 +242,7 @@ export default function App() {
         setWaypoints([]);
         setTargetLat('');
         setTargetLng('');
+        setActionOnArrival(false);
         addLog('SYSTEM', 'Stop command sent. Session unlocked and state reset.');
     };
 
@@ -489,31 +491,68 @@ export default function App() {
                         </div>
 
                         <div className="tabs-container">
-                            <button className={`tab-btn ${activeTab === 1 ? 'active' : ''}`} onClick={() => setActiveTab(1)} disabled={sessionLocked}>MANUAL</button>
-                            <button className={`tab-btn ${activeTab === 2 ? 'active' : ''}`} onClick={() => setActiveTab(2)} disabled={sessionLocked}>AUTO (PRE)</button>
-                            <button className={`tab-btn ${activeTab === 3 ? 'active' : ''}`} onClick={() => setActiveTab(3)} disabled={sessionLocked}>AUTO (DYN)</button>
+                            <button 
+                                className={`tab-btn ${activeTab === 1 ? 'active' : ''}`} 
+                                onClick={() => setActiveTab(1)} 
+                                disabled={sessionLocked}
+                                title={sessionLocked ? "Unlock session to switch modes" : "Manual Control"}
+                            >
+                                MANUAL
+                            </button>
+                            <button 
+                                className={`tab-btn ${activeTab === 2 ? 'active' : ''}`} 
+                                onClick={() => setActiveTab(2)} 
+                                disabled={sessionLocked}
+                                title={sessionLocked ? "Unlock session to switch modes" : "Predefined Auto"}
+                            >
+                                AUTO (PRE)
+                            </button>
+                            <button 
+                                className={`tab-btn ${activeTab === 3 ? 'active' : ''}`} 
+                                onClick={() => setActiveTab(3)} 
+                                disabled={sessionLocked}
+                                title={sessionLocked ? "Unlock session to switch modes" : "Dynamic Auto"}
+                            >
+                                AUTO (DYN)
+                            </button>
                         </div>
-                        {sessionLocked && <div style={{ color: 'var(--accent-amber)', fontSize: '12px', marginBottom: '10px' }}>⚠ Session Locked</div>}
+                        {sessionLocked && <div className="session-lock-indicator">⚠ MISSION IN PROGRESS — SESSION LOCKED</div>}
 
                         {/* MODE 1: MANUAL */}
                         {activeTab === 1 && (
                             <div className="mode-content">
+                                <div className="section-label">Direct Drive Control</div>
                                 <div className="control-buttons-stack" style={{ marginBottom: '16px' }}>
-                                    <button className="btn-action engage" onClick={engageManual} disabled={sessionLocked}>▶ ENGAGE MANUAL</button>
+                                    <button 
+                                        className={`btn-action engage ${sessionLocked ? 'active' : ''}`} 
+                                        onClick={engageManual} 
+                                        disabled={sessionLocked}
+                                    >
+                                        {sessionLocked ? '● MANUAL ENGAGED' : '▶ ENGAGE MANUAL'}
+                                    </button>
                                 </div>
                                 <div className="dpad-section">
                                     <div className="dpad-container">
                                         <div className="dpad-cross">
-                                            <button className="dbtn n" onClick={() => { setSessionLocked(true); send({ type: 'manual_cmd', data: { direction: 'forward' } }); }}>▲</button>
-                                            <button className="dbtn w" onClick={() => { setSessionLocked(true); send({ type: 'manual_cmd', data: { direction: 'left' } }); }}>◀</button>
-                                            <button className="dbtn e" onClick={() => { setSessionLocked(true); send({ type: 'manual_cmd', data: { direction: 'right' } }); }}>▶</button>
-                                            <button className="dbtn s" onClick={() => { setSessionLocked(true); send({ type: 'manual_cmd', data: { direction: 'backward' } }); }}>▼</button>
+                                            <button className="dbtn n" onMouseDown={() => { if(sessionLocked) send({ type: 'manual_cmd', data: { direction: 'forward' } }); }} onMouseUp={() => send({ type: 'manual_cmd', data: { direction: 'stop' } })}>▲</button>
+                                            <button className="dbtn w" onMouseDown={() => { if(sessionLocked) send({ type: 'manual_cmd', data: { direction: 'left' } }); }} onMouseUp={() => send({ type: 'manual_cmd', data: { direction: 'stop' } })}>◀</button>
+                                            <button className="dbtn e" onMouseDown={() => { if(sessionLocked) send({ type: 'manual_cmd', data: { direction: 'right' } }); }} onMouseUp={() => send({ type: 'manual_cmd', data: { direction: 'stop' } })}>▶</button>
+                                            <button className="dbtn s" onMouseDown={() => { if(sessionLocked) send({ type: 'manual_cmd', data: { direction: 'backward' } }); }} onMouseUp={() => send({ type: 'manual_cmd', data: { direction: 'stop' } })}>▼</button>
                                         </div>
-                                        <button className="btn-stop" onClick={handleStop}>⬛ STOP / UNLOCK</button>
+                                        <button className="btn-stop" onClick={handleStop}>⬛ STOP & RESET</button>
                                     </div>
                                 </div>
                                 <div style={{ marginTop: '20px' }}>
-                                    <button className="btn-action prominent" style={{ width: '100%' }} onClick={() => send({ type: 'payload_action', data: { action: 'explode' } })}>💣 ACTION / EXPLODE</button>
+                                    <button 
+                                        className="btn-action prominent" 
+                                        style={{ width: '100%' }} 
+                                        onClick={() => {
+                                            send({ type: 'payload_action', data: { action: 'explode' } });
+                                            addLog('PAYLOAD', 'ACTION / EXPLODE COMMAND SENT', true);
+                                        }}
+                                    >
+                                        💣 ACTION / EXPLODE
+                                    </button>
                                 </div>
                             </div>
                         )}
@@ -522,23 +561,31 @@ export default function App() {
                         {activeTab === 2 && (
                             <div className="mode-content">
                                 <div className="section-label">Predefined Waypoints</div>
-                                <select className="waypoint-select" onChange={(e) => {
-                                    if(e.target.value === 'wp1') setWaypoints([{lat: 34.0522, lng: -118.2437}, {lat: 34.0530, lng: -118.2440}]);
-                                    if(e.target.value === 'clear') setWaypoints([]);
-                                }} style={{ width: '100%', padding: '8px', marginBottom: '16px', background: 'var(--bg-elevated)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: '4px' }} disabled={sessionLocked}>
-                                    <option value="clear">Select Route...</option>
+                                <select 
+                                    className="waypoint-select" 
+                                    onChange={(e) => {
+                                        if(e.target.value === 'wp1') setWaypoints([{lat: 34.0522, lng: -118.2437}, {lat: 34.0530, lng: -118.2440}]);
+                                        if(e.target.value === 'wp2') setWaypoints([{lat: 34.0522, lng: -118.2437}, {lat: 34.0515, lng: -118.2450}, {lat: 34.0510, lng: -118.2430}]);
+                                        if(e.target.value === 'clear') setWaypoints([]);
+                                    }} 
+                                    style={{ width: '100%', padding: '10px', marginBottom: '16px', background: 'var(--bg-elevated)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: '4px' }} 
+                                    disabled={sessionLocked}
+                                >
+                                    <option value="clear">Select Mission Profile...</option>
                                     <option value="wp1">Alpha Patrol Route</option>
-                                    <option value="wp2">Bravo Perimeter</option>
+                                    <option value="wp2">Bravo Perimeter Survey</option>
                                 </select>
 
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
+                                <label className="payload-checkbox">
                                     <input type="checkbox" checked={actionOnArrival} onChange={(e) => !sessionLocked && setActionOnArrival(e.target.checked)} disabled={sessionLocked} />
-                                    Action/Explode on Arrival
+                                    <span>Action/Explode on Arrival</span>
                                 </label>
 
                                 <div className="control-buttons-stack">
-                                    <button className="btn-action" onClick={handleSendMission} disabled={sessionLocked}>SEND MISSION</button>
-                                    <button className="btn-stop" onClick={handleStop}>⬛ STOP / UNLOCK</button>
+                                    <button className="btn-action mission-send" onClick={handleSendMission} disabled={sessionLocked || waypoints.length === 0}>
+                                        INITIATE AUTONOMOUS MISSION
+                                    </button>
+                                    <button className="btn-stop" onClick={handleStop}>⬛ STOP & RESET</button>
                                 </div>
                             </div>
                         )}
@@ -546,22 +593,34 @@ export default function App() {
                         {/* MODE 3: AUTO DYNAMIC */}
                         {activeTab === 3 && (
                             <div className="mode-content">
-                                <div className="section-label">Dynamic Routing (OSRM)</div>
+                                <div className="section-label">Dynamic Routing Target</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-                                    <input type="number" placeholder="Target Latitude" value={targetLat} onChange={e => setTargetLat(e.target.value)} disabled={sessionLocked} style={{ padding: '8px', background: 'var(--bg-elevated)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: '4px' }} />
-                                    <input type="number" placeholder="Target Longitude" value={targetLng} onChange={e => setTargetLng(e.target.value)} disabled={sessionLocked} style={{ padding: '8px', background: 'var(--bg-elevated)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: '4px' }} />
+                                    <div className="input-group">
+                                        <span className="input-label">LAT</span>
+                                        <input type="number" placeholder="0.000000" value={targetLat} onChange={e => setTargetLat(e.target.value)} disabled={sessionLocked} />
+                                    </div>
+                                    <div className="input-group">
+                                        <span className="input-label">LNG</span>
+                                        <input type="number" placeholder="0.000000" value={targetLng} onChange={e => setTargetLng(e.target.value)} disabled={sessionLocked} />
+                                    </div>
                                 </div>
-                                <button className="btn-action" onClick={calculateDynamicRoute} disabled={sessionLocked} style={{ width: '100%', marginBottom: '16px' }}>Calculate Route</button>
+                                <button className="btn-action" onClick={calculateDynamicRoute} disabled={sessionLocked || !targetLat || !targetLng} style={{ width: '100%', marginBottom: '16px' }}>
+                                    CALCULATE OPTIMAL ROUTE
+                                </button>
 
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}>
+                                <label className="payload-checkbox">
                                     <input type="checkbox" checked={actionOnArrival} onChange={(e) => !sessionLocked && setActionOnArrival(e.target.checked)} disabled={sessionLocked}/>
-                                    Action/Explode on Arrival
+                                    <span>Action/Explode on Arrival</span>
                                 </label>
 
                                 <div className="control-buttons-stack">
-                                    <button className="btn-action" onClick={handleSendMission} disabled={sessionLocked}>SEND MISSION</button>
-                                    <button className="btn-stop" onClick={handleStop}>⬛ STOP / UNLOCK</button>
-                                    <button className="btn-action" onClick={() => { setWaypoints([]); setPathHistory([]); }}>CLEAR DRAWING</button>
+                                    <button className="btn-action mission-send" onClick={handleSendMission} disabled={sessionLocked || waypoints.length === 0}>
+                                        INITIATE DYNAMIC MISSION
+                                    </button>
+                                    <button className="btn-stop" onClick={handleStop}>⬛ STOP & RESET</button>
+                                    <button className="btn-action clear-draw" onClick={() => { setWaypoints([]); setPathHistory([]); }} disabled={sessionLocked}>
+                                        CLEAR PLOTTED DATA
+                                    </button>
                                 </div>
                             </div>
                         )}
