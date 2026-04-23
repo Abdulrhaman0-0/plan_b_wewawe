@@ -103,6 +103,7 @@ export default function App() {
     const wsRef = useRef(null);
     const logScrollRef = useRef(null);
     const dPadInterval = useRef(null);
+    const activeKeyRef = useRef(null);
 
     /* Clock ticker */
     useEffect(() => {
@@ -161,29 +162,45 @@ export default function App() {
 
     /* Keyboard mapping for Manual Control */
     useEffect(() => {
-        if (screen !== 'dashboard' || activeTab !== 1 || sessionLocked) return;
+        // Only allow keyboard controls when in the dashboard and on the Manual Control tab
+        if (screen !== 'dashboard' || activeTab !== 1) return;
 
         const handleKeyDown = (e) => {
+            // Prevent continuous firing when a key is held down
+            if (e.repeat) return;
+
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 e.preventDefault();
+                // Ensure manual mode is engaged
                 if (!sessionLocked) setSessionLocked(true);
+                
                 let dir;
                 if (e.key === 'ArrowUp') dir = 'forward';
                 if (e.key === 'ArrowDown') dir = 'backward';
                 if (e.key === 'ArrowLeft') dir = 'left';
                 if (e.key === 'ArrowRight') dir = 'right';
-                if (dir) send({ type: 'manual_cmd', data: { direction: dir } });
+                
+                if (dir) {
+                    send({ type: 'manual_cmd', data: { direction: dir } });
+                    activeKeyRef.current = e.key;
+                }
             }
         };
 
         const handleKeyUp = (e) => {
             if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-                send({ type: 'manual_cmd', data: { direction: 'stop' } });
+                e.preventDefault();
+                // Only send stop if the released key is the currently active one
+                if (activeKeyRef.current === e.key) {
+                    send({ type: 'manual_cmd', data: { direction: 'stop' } });
+                    activeKeyRef.current = null;
+                }
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('keydown', handleKeyDown, { passive: false });
+        window.addEventListener('keyup', handleKeyUp, { passive: false });
+        
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
             window.removeEventListener('keyup', handleKeyUp);
