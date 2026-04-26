@@ -125,21 +125,35 @@ async def wss_client():
                 async for message in ws:
                     try:
                         packet = json.loads(message)
+                        msg_type = packet.get('type')
+                        data = packet.get('data', {})
 
-                        # -------------------------------------------------------
-                        # Expected payload: {"command": "forward", "speed": 75}
-                        # Falls back to legacy {"type": "emergency_stop"} packet.
-                        # -------------------------------------------------------
-                        if 'command' in packet:
-                            command = packet.get('command', 'stop').strip().lower()
+                        # ------------------------------------------------------------------
+                        # Handle movement commands from BOTH payload shapes:
+                        #   Wrapped: {"type": "manual_cmd", "data": {"direction": "forward", "speed": 80}}
+                        #   Flat:    {"command": "forward", "speed": 80}
+                        # ------------------------------------------------------------------
+                        if msg_type == 'manual_cmd' or 'command' in packet:
+                            # Direction: data.direction → data.command → packet.command
+                            raw_cmd = (
+                                data.get('direction')
+                                or data.get('command')
+                                or packet.get('command', 'stop')
+                            )
+                            command = str(raw_cmd).strip().lower()
 
-                            # Convert 0-100 integer to 0.0-1.0 float; default 50
-                            raw_speed = packet.get('speed', 50)
+                            # Speed: data.speed → packet.speed → default 50
+                            raw_speed = (
+                                data.get('speed')
+                                if data.get('speed') is not None
+                                else packet.get('speed', 50)
+                            )
                             speed = max(0.0, min(1.0, int(raw_speed) / 100.0))
 
+                            logging.info(f"CMD '{command}' speed={speed:.2f} (raw: {packet})")
                             handle_movement(command, speed)
 
-                        elif packet.get('type') == 'emergency_stop':
+                        elif msg_type == 'emergency_stop':
                             logging.error("EMERGENCY STOP received via WS!")
                             stop_motors()
                             last_command_time = time.time()
